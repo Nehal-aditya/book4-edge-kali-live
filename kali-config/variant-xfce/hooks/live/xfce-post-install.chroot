@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# dont forget execute:
+#  chmod +x kali-live/kali-config/variant-xfce/hooks/live/xfce-post-install.chroot
+
+systemctl enable lightdm
+
+useradd -m kaliuser
+echo "kaliuser:kali" | chpasswd
+usermod -aG sudo kaliuser
+
+apt-get update
+apt-get upgrade -y
