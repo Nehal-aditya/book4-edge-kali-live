@@ -15,6 +15,14 @@ kali-desktop-xfce
 ##   For the complete list see: https://www.kali.org/tools/kali-meta/
 kali-linux-default
 
+# XFCE desktop
+xfce4
+xfce4-goodies
+thunar
+lightdm
+network-manager-gnome
+gnome-icon-theme
+
 ## Extra Kali packages/tools/applications
 ##   For the complete list see: https://www.kali.org/tools/
 ##                              https://pkg.kali.org/
