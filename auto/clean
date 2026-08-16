@@ -11,6 +11,6 @@ rm -fv \
   config/package-lists/live.list.chroot
 
 if [ -e config/hooks/ ]; then
-  find config/hooks/ -type l \
-    | xargs --no-run-if-empty rm -f
+  find config/hooks/ -type l -print0 \
+    | xargs --no-run-if-empty -0 rm -f
 fi
