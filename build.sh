@@ -511,7 +511,8 @@ if [ "${ARCH}" = "armhf" ]; then
 else
   OUT_EXT=iso
 fi
-OUT_FILENAME="kali-linux-${VERSION,,}-${VARIANT,,}-${ARCH,,}.${OUT_EXT}"
+OUT_FILENAME="kali-linux-${VERSION,,}-${PROJECT,,}-${VARIANT,,}-${ARCH,,}.${OUT_EXT,,}"
+OUT_FILENAME="${OUT_FILENAME/-default-/-}"
 
 ## Validate options against the supported lists
 ## Method #1
