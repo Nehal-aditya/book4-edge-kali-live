@@ -49,7 +49,7 @@ configure_zsh() {
     fi
     for user in $(get_user_list); do
         echo "INFO: changing default shell of user '$user' to zsh"
-        chsh --shell /usr/bin/zsh $user
+        chsh --shell /usr/bin/zsh "$user"
     done
 }
 
@@ -68,8 +68,8 @@ configure_usergroups() {
     for user in $(get_user_list | grep -xv root); do
         echo "INFO: adding user '$user' to groups '$kali_groups'"
         for grp in $kali_groups; do
-            getent group $grp >/dev/null || continue
-            usermod -a -G $grp $user
+            getent group "$grp" >/dev/null || continue
+            usermod -a -G "$grp" "$user"
         done
     done
 }
@@ -80,9 +80,9 @@ pkg_installed() {
 
 configure_terminal() {
     while read -r desktop terminal; do
-        pkg_installed kali-desktop-$desktop || continue
+        pkg_installed "kali-desktop-$desktop" || continue
         echo "INFO: setting x-terminal-emulator alternative to '$terminal'"
-        update-alternatives --verbose --set x-terminal-emulator /usr/bin/$terminal || true
+        update-alternatives --verbose --set x-terminal-emulator "/usr/bin/$terminal" || true
         break
     done <<END
 e17   terminology
