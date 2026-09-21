@@ -19,7 +19,7 @@ public_kali_mirror=http://http.kali.org/kali
 temp=""
 arch=$(dpkg --print-architecture)
 dist="kali-rolling"
-lb_opts=""
+lb_opts=()
 while [ $# -gt 0 ]; do
      arg="$1"
   case "$arg" in
@@ -55,7 +55,7 @@ done
 eval set -- "$temp"
 
 # Resolve release name
-dist=$(wget -q -O- $kali_mirror/dists/$dist/Release | awk '/^Codename:/ {print $2}')
+dist=$(wget -q -O- "$kali_mirror/dists/$dist/Release" | awk '/^Codename:/ {print $2}')
 if [ -z "$dist" ]; then
   echo "ERROR: Build release could not be resolved"
   exit 1
@@ -63,9 +63,9 @@ fi
 
 # live-build doesn't work if --parent-debian-distribution is unknown of
 # debian-cd => we have to put a symlink so that it deals with kali like sid
-if [ ! -e ${LIVE_BUILD:-/usr/share/live/build}/data/debian-cd/$dist ]; then
-  if [ -w ${LIVE_BUILD:-/usr/share/live/build}/data/debian-cd ]; then
-    ln -sf sid ${LIVE_BUILD:-/usr/share/live/build}/data/debian-cd/$dist
+if [ ! -e "${LIVE_BUILD:-/usr/share/live/build}/data/debian-cd/$dist" ]; then
+  if [ -w "${LIVE_BUILD:-/usr/share/live/build}/data/debian-cd" ]; then
+    ln -sf sid "${LIVE_BUILD:-/usr/share/live/build}/data/debian-cd/$dist"
   else
     echo "ERROR: Run this first:"
     echo "ln -sf sid ${LIVE_BUILD:-/usr/share/live/build}/data/debian-cd/$dist"
@@ -76,16 +76,16 @@ fi
 # Define options that vary across architectures
 case "$arch" in
   amd64)
-  lb_opts="$lb_opts --debian-installer live"
+  lb_opts+=(--debian-installer live)
   ;;
   i386)
-  lb_opts="$lb_opts --debian-installer live --linux-flavours 686-pae"
+  lb_opts+=(--debian-installer live --linux-flavours 686-pae)
   ;;
   arm64)
-  lb_opts="$lb_opts --bootloaders grub-efi --uefi-secure-boot disable"
+  lb_opts+=(--bootloaders grub-efi --uefi-secure-boot disable)
   ;;
   armhf)
-  lb_opts="$lb_opts --binary-images hdd --binary-filesystem ext4 --chroot-filesystem none"
+  lb_opts+=(--binary-images hdd --binary-filesystem ext4 --chroot-filesystem none)
   ;;
   *)
   echo "WARNING: configuration not tested on arch $arch" >&2
@@ -97,8 +97,8 @@ case "$dist" in
   kali-last-snapshot)
   # We don't want kali-last-snapshot to end up in the image, it
   # should be replaced with kali-rolling
-  lb_opts="$lb_opts --distribution-binary kali-rolling"
-  lb_opts="$lb_opts --debootstrap-script /usr/share/debootstrap/scripts/kali-rolling"
+  lb_opts+=(--distribution-binary kali-rolling)
+  lb_opts+=(--debootstrap-script /usr/share/debootstrap/scripts/kali-rolling)
   ;;
 esac
 
@@ -107,13 +107,13 @@ esac
 # Drop all files that a former run might have put into place
 for file in $(cd kali-config && find ./common ./variant-* -type f); do
   file=${file#./*/}
-  rm -fv config/$file
+  rm -fv "config/$file"
 done
 rm -fv config/archives/kali-proposed-updates.list.*
 
 # Copy over all files from official kali configuration
 cp -rT kali-config/common config
-[ ! -d kali-config/variant-$variant ] || cp -rTL kali-config/variant-$variant config
+[ ! -d "kali-config/variant-$variant" ] || cp -rTL "kali-config/variant-$variant" config
 
 if [ -n "$enable_pu" ]; then
   mkdir -p config/archives
@@ -148,5 +148,5 @@ lb config noauto \
   --bootappend-install "net.ifnames=0" \
   --security false \
   --win32-loader false \
-  $lb_opts \
+  "${lb_opts[@]}" \
   "$@"

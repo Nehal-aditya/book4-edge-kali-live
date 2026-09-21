@@ -1,6 +1,6 @@
 ## Live image with Xfce and default tool selection
 ##
-## $ ./build.sh --variant xfce-light
+## $ ./build.sh --variant default
 
 ## Live images always want these
 kali-linux-core
