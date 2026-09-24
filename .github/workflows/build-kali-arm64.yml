@@ -1,0 +1,151 @@
+name: Build Kali Linux Live ARM64 ISO
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'nightly-*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  OUT_DIR: ${{ github.workspace }}/output
+
+jobs:
+  build-arm64:
+    name: Build and publish ARM64 Kali Live ISO
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Clean runner disk
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+          docker system prune --all --force --volumes || true
+          docker image prune --all --force || true
+
+          for path in \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/share/powershell \
+            /usr/local/lib/node_modules; do
+            if [ -e "$path" ]; then
+              sudo rm -rf "$path"
+            fi
+          done
+
+          df -h
+
+      - name: Install host prerequisites for non-Kali Ubuntu build
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            apt-utils \
+            ca-certificates \
+            cpio \
+            gzip \
+            debootstrap \
+            wget \
+            zstd
+
+      - name: Install Kali archive keyring and live-build
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
+          cd "$workdir"
+
+          keyring_package="$(
+            wget -qO- https://http.kali.org/pool/main/k/kali-archive-keyring/ \
+              | grep -oE 'kali-archive-keyring_[^"]+_all\.deb' \
+              | sort -V \
+              | tail -n 1
+          )"
+
+          live_build_package="$(
+            wget -qO- https://http.kali.org/kali/pool/main/l/live-build/ \
+              | grep -oE 'live-build_[^"]+%2Bkalix_all\.deb' \
+              | sort -V \
+              | tail -n 1
+          )"
+
+          test -n "$keyring_package"
+          test -n "$live_build_package"
+
+          wget "https://http.kali.org/pool/main/k/kali-archive-keyring/$keyring_package"
+          sudo apt-get install --yes "./$keyring_package"
+
+          wget "https://http.kali.org/kali/pool/main/l/live-build/$live_build_package"
+          sudo apt-get install --yes "./$live_build_package"
+
+          live_build_version="$(dpkg-query -W -f='${Version}' live-build)"
+          echo "Installed Kali live-build: $live_build_version"
+
+      - name: Build Kali ARM64 live image
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          mkdir -p "$OUT_DIR"
+
+          sudo --preserve-env=OUT_DIR env DEBUG=1 ./build.sh \
+            --arch arm64 \
+            --output "$OUT_DIR"
+
+          sudo chown -R "$USER:$USER" "$OUT_DIR"
+
+          find "$OUT_DIR" -maxdepth 1 -type f -name '*.iso' -print -quit | grep -q .
+
+      - name: Compress ISO and generate SHA256 checksum
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          iso_file="$(find "$OUT_DIR" -maxdepth 1 -type f -name '*.iso' -print -quit)"
+          compressed="${iso_file}.zst"
+
+          zstd --ultra -19 -T0 --rm "$iso_file" -o "$compressed"
+          sha256sum "$compressed" > "$compressed.sha256"
+
+          test -s "$compressed"
+          test -s "$compressed.sha256"
+
+          cat "$compressed.sha256"
+          ls -lh "$compressed" "$compressed.sha256"
+
+      - name: Publish GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          assets=("$OUT_DIR"/*.iso.zst "$OUT_DIR"/*.iso.zst.sha256)
+
+          if [[ "$TAG_NAME" == nightly-* ]]; then
+            gh release create "$TAG_NAME" "${assets[@]}" \
+              --title "Kali Linux ARM64 Live $TAG_NAME" \
+              --notes "Automated nightly Kali Linux ARM64 live image." \
+              --prerelease
+          else
+            gh release create "$TAG_NAME" "${assets[@]}" \
+              --title "Kali Linux ARM64 Live $TAG_NAME" \
+              --generate-notes
+          fi
