@@ -5,7 +5,13 @@ on:
     tags:
       - 'v*'
       - 'nightly-*'
+  
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag, for example v1.0.0 or nightly-2026-09-24'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -23,6 +29,31 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Determine release tag
+        id: release-tag
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_TAG: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            tag="$INPUT_TAG"
+          else
+            tag="$PUSH_TAG"
+          fi
+
+          if [[ ! "$tag" =~ ^v.+$ && ! "$tag" =~ ^nightly-.+$ ]]; then
+            echo "Invalid release tag: $tag"
+            echo "The tag must start with 'v' or 'nightly-'."
+            exit 1
+          fi
+
+          echo "Using release tag: $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Clean runner disk
         shell: bash
@@ -129,23 +160,21 @@ jobs:
           cat "$compressed.sha256"
           ls -lh "$compressed" "$compressed.sha256"
 
-      - name: Publish GitHub release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ github.ref_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ steps.release-tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Kali Linux ARM64 Live ${{ steps.release-tag.outputs.tag }}
+          generate_release_notes: ${{ !startsWith(steps.release-tag.outputs.tag, 'nightly-') }}
+          body: |
+            Automated Kali Linux ARM64 live image.
 
-          assets=("$OUT_DIR"/*.iso.zst "$OUT_DIR"/*.iso.zst.sha256)
-
-          if [[ "$TAG_NAME" == nightly-* ]]; then
-            gh release create "$TAG_NAME" "${assets[@]}" \
-              --title "Kali Linux ARM64 Live $TAG_NAME" \
-              --notes "Automated nightly Kali Linux ARM64 live image." \
-              --prerelease
-          else
-            gh release create "$TAG_NAME" "${assets[@]}" \
-              --title "Kali Linux ARM64 Live $TAG_NAME" \
-              --generate-notes
-          fi
+            Build commit: ${{ github.sha }}
+            Workflow run: ${{ github.run_id }}
+          prerelease: ${{ startsWith(steps.release-tag.outputs.tag, 'nightly-') }}
+          files: |
+            ${{ env.OUT_DIR }}/*.iso.zst
+            ${{ env.OUT_DIR }}/*.iso.zst.sha256
+          fail_on_unmatched_files: true
