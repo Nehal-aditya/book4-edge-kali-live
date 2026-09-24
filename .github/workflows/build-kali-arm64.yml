@@ -111,7 +111,7 @@ jobs:
 
           live_build_package="$(
             wget -qO- https://http.kali.org/kali/pool/main/l/live-build/ \
-              | grep -oE 'live-build_[^"]+_all\.deb'
+              | grep -oE 'live-build_[^"]+_all\.deb' \
               | sort -V \
               | tail -n 1
           )"
