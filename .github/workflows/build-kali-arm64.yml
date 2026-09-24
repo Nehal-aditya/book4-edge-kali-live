@@ -103,15 +103,17 @@ jobs:
           cd "$workdir"
 
           keyring_package="$(
-            wget -qO- https://http.kali.org/pool/main/k/kali-archive-keyring/ \
+            wget -qO- \
+              https://http.kali.org/pool/main/k/kali-archive-keyring/ \
               | grep -oE 'kali-archive-keyring_[^"]+_all\.deb' \
               | sort -V \
               | tail -n 1
           )"
 
           live_build_package="$(
-            wget -qO- https://http.kali.org/kali/pool/main/l/live-build/ \
-              | grep -oE 'live-build_[^"]+_all\.deb' \
+            wget -qO- \
+              https://http.kali.org/kali/pool/main/l/live-build/ \
+              | grep -oE 'live-build_[^"]+%2Bkali[0-9]+_all\.deb' \
               | sort -V \
               | tail -n 1
           )"
@@ -119,14 +121,31 @@ jobs:
           test -n "$keyring_package"
           test -n "$live_build_package"
 
-          wget "https://http.kali.org/pool/main/k/kali-archive-keyring/$keyring_package"
+          echo "Selected archive keyring: $keyring_package"
+          echo "Selected Kali live-build: $live_build_package"
+
+          wget \
+            "https://http.kali.org/pool/main/k/kali-archive-keyring/$keyring_package"
+
           sudo apt-get install --yes "./$keyring_package"
 
-          wget "https://http.kali.org/kali/pool/main/l/live-build/$live_build_package"
-          sudo apt-get install --yes "./$live_build_package"
+          # Download using a stable local filename. This avoids issues caused
+          # by wget handling the encoded %2B in the remote filename.
+          wget \
+            -O live-build.deb \
+            "https://http.kali.org/kali/pool/main/l/live-build/$live_build_package"
 
-          live_build_version="$(dpkg-query -W -f='${Version}' live-build)"
-          echo "Installed Kali live-build: $live_build_version"
+          downloaded_version="$(dpkg-deb -f live-build.deb Version)"
+          echo "Downloaded live-build version: $downloaded_version"
+
+          test "$downloaded_version" = "1:20250814+kali3"
+
+          sudo apt-get install --yes ./live-build.deb
+
+          installed_version="$(dpkg-query -W -f='${Version}' live-build)"
+          echo "Installed Kali live-build version: $installed_version"
+
+          test "$installed_version" = "1:20250814+kali3"
 
       - name: Build Kali ARM64 live image
         shell: bash
